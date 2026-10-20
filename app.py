@@ -1,5 +1,8 @@
-from flask import Flask, render_template, request, redirect, url_for
-import os
+from datetime import datetime
+
+from flask import Flask, abort, redirect, render_template, request, url_for
+from sqlalchemy import inspect, text
+from sqlalchemy.exc import IntegrityError
 
 from extensions import db
 
@@ -10,7 +13,8 @@ app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 
 db.init_app(app)
 
-from models import Habit, MoodEntry, Expense, Recipe  # noqa: E402
+from models import Category, Expense, Habit, MoodEntry, Recipe  # noqa: E402
+
 
 @app.route('/')
 def home():
@@ -23,14 +27,72 @@ def habit_tracker():
         description = request.form.get('description', '').strip()
 
         if name:
-            habit = Habit(name=name, description=description or None)
+            habit = Habit(name=name, description=description or None,
+                          category=selected_category())
             db.session.add(habit)
             db.session.commit()
 
         return redirect(url_for('habit_tracker'))
 
     habits = Habit.query.order_by(Habit.created_at.desc()).all()
-    return render_template('apps/habit_tracker/index.html', page_id='habit-tracker', habits=habits)
+    return render_template('apps/habit_tracker/index.html', page_id='habit-tracker', habits=habits,
+                           categories=Category.query.order_by(Category.name).all())
+
+
+def selected_category():
+    category_id = request.form.get('category_id', '').strip()
+    if not category_id:
+        return None
+    try:
+        category = db.session.get(Category, int(category_id))
+    except ValueError:
+        abort(400, description='Select an existing category.')
+    if category is None:
+        abort(400, description='Select an existing category.')
+    return category
+
+
+@app.route('/habit-tracker/categories', methods=['POST'])
+def create_category():
+    name = request.form.get('name', '').strip()
+    if not name or len(name) > 100:
+        abort(400, description='Category name must contain 1 to 100 characters.')
+    db.session.add(Category(name=name))
+    try:
+        db.session.commit()
+    except IntegrityError:
+        db.session.rollback()
+        abort(400, description='A category with that name already exists.')
+    return redirect(url_for('habit_tracker'))
+
+
+@app.route('/habit-tracker/<int:habit_id>/category', methods=['POST'])
+def update_habit_category(habit_id):
+    habit = db.session.get(Habit, habit_id)
+    if habit is None:
+        abort(404)
+    habit.category = selected_category()
+    db.session.commit()
+    return redirect(url_for('habit_tracker'))
+
+
+@app.route('/habit-tracker/<int:habit_id>/reminder', methods=['POST'])
+def update_habit_reminder(habit_id):
+    """Attach, update, or remove an optional reminder from an existing habit."""
+    habit = db.session.get(Habit, habit_id)
+    if habit is None:
+        abort(404)
+
+    reminder_time = request.form.get('reminder_time', '').strip()
+    if reminder_time:
+        try:
+            datetime.strptime(reminder_time, '%H:%M')
+        except ValueError:
+            abort(400, description='Reminder time must use the HH:MM format.')
+
+    habit.reminder_time = reminder_time or None
+    db.session.commit()
+    return redirect(url_for('habit_tracker'))
 
 @app.route('/mood-journal', methods=['GET', 'POST'])
 def mood_journal():
@@ -127,8 +189,13 @@ def recipe_assistant():
 def init_db():
     with app.app_context():
         db.create_all()
+        # create_all does not add columns to existing SQLite tables.
+        if 'category_id' not in {column['name'] for column in inspect(db.engine).get_columns('habit')}:
+            with db.engine.begin() as connection:
+                connection.execute(text(
+                    'ALTER TABLE habit ADD COLUMN category_id INTEGER REFERENCES category(id)'
+                ))
 
 if __name__ == '__main__':
-    if not os.path.exists('app.db'):
-        init_db()
+    init_db()
     app.run(debug=True)

@@ -328,3 +328,16 @@ db.session.commit()
 ## Troubleshooting
 
 See [TROUBLESHOOTING.md](TROUBLESHOOTING.md) for common database-related issues and solutions.
+
+## Custom habit categories (US-05)
+
+Categories are saved in the `category` table with a unique, case-insensitive name
+(up to 100 characters). Habits optionally reference a category through `category_id`.
+Create a category on the Habit Tracker page, then select it when creating a habit
+or use an existing habit's Category selector and Save Category button. Select
+Uncategorized to remove an assignment.
+
+Before serving an existing database, run `python -c 'from app import init_db; init_db()'`.
+Starting with `python app.py` also runs this upgrade automatically. It creates the
+category table and adds the nullable category reference to existing habits without
+resetting data. Repeating the upgrade is safe.

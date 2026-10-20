@@ -1,6 +1,6 @@
 import pytest
-from models import Expense, Habit, MoodEntry, Recipe
 
+from models import Expense, Habit, MoodEntry, Recipe
 
 # === Habit Tracker Tests ===
 

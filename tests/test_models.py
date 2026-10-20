@@ -4,7 +4,6 @@ from sqlalchemy.exc import IntegrityError
 from extensions import db
 from models import Expense, Habit, MoodEntry, Recipe
 
-
 # === Habit Model Tests ===
 
 
