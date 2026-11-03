@@ -35,7 +35,16 @@ def habit_tracker():
         return redirect(url_for('habit_tracker'))
 
     habits = Habit.query.order_by(Habit.created_at.desc()).all()
+    dashboard_view = request.args.get('view', 'all')
+    if dashboard_view not in ('all', 'today'):
+        abort(400, description='View must be all or today.')
+    today = date.today()
+    if dashboard_view == 'today':
+        weekday = WEEKDAYS[today.weekday()]
+        habits = [habit for habit in habits
+                  if not habit.scheduled_days_list or weekday in habit.scheduled_days_list]
     return render_template('apps/habit_tracker/index.html', page_id='habit-tracker', habits=habits,
+                           dashboard_view=dashboard_view, today=today,
                            categories=Category.query.order_by(Category.name).all(),
                            frequencies=HABIT_FREQUENCIES)
 

@@ -34,3 +34,13 @@ once; simultaneous submissions preserve existing history. Completion dates use
 the server's local calendar day and are stored as a JSON list in `completed_dates`.
 
 US-09 regression tests: `uv run pytest tests/test_us09_duplicate_completions.py`.
+
+## Today's habits (US-12)
+
+Choose **Today** on the Habit Tracker (`/habit-tracker?view=today`) to see
+habits scheduled for the server's current weekday. Habits without a weekday
+schedule remain available every day. Frequency defines the progress/streak
+period independently of the weekday schedule. The view recalculates on each
+request, including after schedule changes or day rollover. **All habits**
+returns to the full list for managing schedules; the default view stays the
+full list.
