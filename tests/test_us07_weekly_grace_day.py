@@ -90,3 +90,47 @@ def test_us07_habit_streak_uses_its_grace_day_setting(client):
     assert habit.current_streak(today=THURSDAY) == 1
     habit.grace_day_enabled = True
     assert habit.current_streak(today=THURSDAY) == 3
+
+
+def test_unscheduled_days_do_not_consume_grace():
+    completed = days(2, 6)
+    assert calculate_streak(completed, date(2026, 11, 6), grace_day=True,
+                            scheduled_days=['Mon', 'Wed', 'Fri']) == 2
+    assert calculate_streak(completed, date(2026, 11, 6), grace_day=False,
+                            scheduled_days=['Mon', 'Wed', 'Fri']) == 1
+
+
+def test_grace_marks_first_miss_and_second_miss_resets_streak(client):
+    habit = make_habit(completed_dates='2026-11-02,2026-11-05', grace_day_enabled=True)
+    streak, grace_dates = habit.streak_status(THURSDAY)
+    assert streak == 1
+    assert grace_dates == days(3)
+    assert habit.completed_dates == '2026-11-02,2026-11-05'
+
+
+def test_future_completions_do_not_start_a_streak():
+    assert calculate_streak(days(6), THURSDAY, grace_day=True) == 0
+
+
+def test_schedule_skips_weekend_without_grace():
+    assert calculate_streak(days(6, 9), date(2026, 11, 9),
+                            scheduled_days=['Mon', 'Fri']) == 2
+
+
+def test_dashboard_displays_streak_grace_date_and_toggle(client, monkeypatch):
+
+    class FixedDate(date):
+        @classmethod
+        def today(cls):
+            return THURSDAY
+
+    monkeypatch.setattr('app.date', FixedDate)
+    habit = make_habit(completed_dates='2026-11-02,2026-11-05',
+                       scheduled_days='Mon,Wed,Thu', grace_day_enabled=True)
+    response = client.get('/habit-tracker')
+    assert response.status_code == 200
+    assert b'2 day streak' in response.data
+    assert b'Grace days: 2026-11-04' in response.data
+    assert b'name="enabled" checked' in response.data
+    client.post(f'/habit-tracker/{habit.id}/grace-day', data={})
+    assert b'data-testid="grace-days"' not in client.get('/habit-tracker').data

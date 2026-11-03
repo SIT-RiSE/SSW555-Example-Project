@@ -112,103 +112,14 @@ class Habit(db.Model):
         return [date.fromisoformat(value)
                 for value in _parse_completion_dates(self.completed_dates)]
 
+    def streak_status(self, today=None):
+        """Return the current streak and dates covered by weekly grace."""
+        return calculate_streak_status(
+            self.completed_dates_list, today or date.today(),
+            grace_day=self.grace_day_enabled, scheduled_days=self.scheduled_days_list)
+
     def current_streak(self, today=None):
-        """Current streak: US-07's grace-day count when enabled, otherwise the
-        schedule- and frequency-aware count from US-14."""
-        today = today or date.today()
-        if self.grace_day_enabled:
-            return calculate_streak(self.completed_dates_list, today, grace_day=True)
-        return self.calculate_current_streak(as_of=today)
-
-    @property
-    def completion_dates(self):
-        """Return the valid, unique ISO dates stored in the completion history."""
-        parsed_dates = set()
-        for value in _parse_completion_dates(self.completed_dates):
-            try:
-                parsed_dates.add(date.fromisoformat(str(value).strip()))
-            except ValueError:
-                # Ignore malformed legacy entries rather than breaking the dashboard.
-                continue
-        return parsed_dates
-
-    def calculate_current_streak(self, as_of=None):
-        """Count consecutive due periods completed through ``as_of``.
-
-        An incomplete current day/week/month does not end a streak while that
-        period is still in progress. A missed earlier scheduled period does.
-        """
-        as_of = as_of or date.today()
-        completions = {completed for completed in self.completion_dates if completed <= as_of}
-        if not completions:
-            return 0
-
-        scheduled_weekdays = {
-            WEEKDAYS.index(day) for day in self.scheduled_days_list if day in WEEKDAYS
-        }
-        if scheduled_weekdays:
-            return self._scheduled_day_streak(completions, scheduled_weekdays, as_of)
-        if self.frequency == 'weekly':
-            return self._weekly_streak(completions, as_of)
-        if self.frequency == 'monthly':
-            return self._monthly_streak(completions, as_of)
-        return self._scheduled_day_streak(completions, set(range(7)), as_of)
-
-    @staticmethod
-    def _scheduled_day_streak(completions, scheduled_weekdays, as_of):
-        def previous_scheduled_day(current):
-            candidate = current - timedelta(days=1)
-            while candidate.weekday() not in scheduled_weekdays:
-                candidate -= timedelta(days=1)
-            return candidate
-
-        current = as_of
-        while current.weekday() not in scheduled_weekdays:
-            current -= timedelta(days=1)
-
-        # Today's scheduled completion can still be completed before the day ends.
-        if current == as_of and current not in completions:
-            current = previous_scheduled_day(current)
-
-        streak = 0
-        while current in completions:
-            streak += 1
-            current = previous_scheduled_day(current)
-        return streak
-
-    @staticmethod
-    def _weekly_streak(completions, as_of):
-        completed_weeks = {
-            completed - timedelta(days=completed.weekday()) for completed in completions
-        }
-        current_week = as_of - timedelta(days=as_of.weekday())
-        if current_week not in completed_weeks:
-            current_week -= timedelta(weeks=1)
-
-        streak = 0
-        while current_week in completed_weeks:
-            streak += 1
-            current_week -= timedelta(weeks=1)
-        return streak
-
-    @staticmethod
-    def _monthly_streak(completions, as_of):
-        completed_months = {date(completed.year, completed.month, 1) for completed in completions}
-        current_month = date(as_of.year, as_of.month, 1)
-
-        def previous_month(month):
-            if month.month == 1:
-                return date(month.year - 1, 12, 1)
-            return date(month.year, month.month - 1, 1)
-
-        if current_month not in completed_months:
-            current_month = previous_month(current_month)
-
-        streak = 0
-        while current_month in completed_months:
-            streak += 1
-            current_month = previous_month(current_month)
-        return streak
+        return self.streak_status(today)[0]
 
     def is_scheduled_on(self, day):
         """True if ``day`` is one of the habit's scheduled weekdays (any day when unscheduled)."""
@@ -218,31 +129,40 @@ class Habit(db.Model):
     @property
     def recent_completions(self):
         """The five most recent completion dates, newest first."""
-        return sorted(self.completion_dates, reverse=True)[:5]
+        return sorted(set(self.completed_dates_list), reverse=True)[:5]
 
 
-def calculate_streak(completed_dates, today, grace_day=False):
-    """Count consecutive completed days ending today (or yesterday).
+def calculate_streak_status(completed_dates, today, grace_day=False, scheduled_days=None):
+    """Use one grace day per Mon-Sun week, considering only scheduled days.
 
-    Today not being completed yet does not break the streak. With ``grace_day``
-    on, the first missed day in each Monday-to-Sunday week is skipped instead of
-    ending the streak; a grace day keeps the streak alive but does not add to it.
+    Grace covers the earliest missed scheduled day in each week. Today is not
+    missed until it has ended. Grace preserves a streak without increasing it.
+    Future completions are ignored and history is never changed.
     """
-    done = set(completed_dates)
+    scheduled = set(scheduled_days or WEEKDAYS)
+    done = {day for day in completed_dates
+            if day <= today and WEEKDAYS[day.weekday()] in scheduled}
     if not done:
-        return 0
-
-    day = today if today in done else today - timedelta(days=1)
-    earliest = min(done)
-    weeks_with_grace_used = set()
+        return 0, []
+    day = min(done)
     streak = 0
-    while day >= earliest:
-        if day in done:
-            streak += 1
-        else:
-            week = tuple(day.isocalendar())[:2]
-            if not grace_day or week in weeks_with_grace_used:
-                break
-            weeks_with_grace_used.add(week)
-        day -= timedelta(days=1)
-    return streak
+    used_weeks = set()
+    grace_dates = []
+    while day <= today:
+        if WEEKDAYS[day.weekday()] in scheduled:
+            if day in done:
+                streak += 1
+            elif day < today:
+                week = tuple(day.isocalendar())[:2]
+                if grace_day and week not in used_weeks:
+                    used_weeks.add(week)
+                    grace_dates.append(day)
+                else:
+                    streak = 0
+        day += timedelta(days=1)
+    return streak, grace_dates
+
+
+def calculate_streak(completed_dates, today, grace_day=False, scheduled_days=None):
+    """Count completed scheduled days in the current streak."""
+    return calculate_streak_status(completed_dates, today, grace_day, scheduled_days)[0]
