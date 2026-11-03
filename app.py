@@ -1,6 +1,6 @@
 from datetime import datetime
 
-from flask import Flask, abort, redirect, render_template, request, url_for
+from flask import Flask, abort, jsonify, redirect, render_template, request, url_for
 from sqlalchemy import inspect, text
 from sqlalchemy.exc import IntegrityError
 
@@ -38,6 +38,23 @@ def habit_tracker():
     return render_template('apps/habit_tracker/index.html', page_id='habit-tracker', habits=habits,
                            categories=Category.query.order_by(Category.name).all(),
                            frequencies=HABIT_FREQUENCIES)
+
+
+@app.route('/habit-tracker/habits')
+def list_current_habits():
+    """US-11: all current habits, newest first."""
+    habits = Habit.query.order_by(Habit.created_at.desc()).all()
+    return jsonify(count=len(habits), habits=[habit.to_dict() for habit in habits])
+
+
+@app.route('/habit-tracker/habits/<int:habit_id>')
+def view_habit(habit_id):
+    """US-11: the full details of one current habit."""
+    habit = db.session.get(Habit, habit_id)
+    if habit is None:
+        abort(404)
+    return jsonify(habit.to_dict())
+
 
 
 def selected_frequency():
