@@ -169,7 +169,12 @@
                                         {% endfor %}
                                     </select>
                                 </div>
-                                <button type="submit" class="px-3 py-1.5 text-sm font-medium border border-[var(--color-border)] text-[var(--color-foreground)] rounded-lg cursor-pointer hover:bg-[var(--color-muted)] transition-colors duration-200">Save</button>
+                                <div class="w-full">
+                                    <label for="habit-description-{{ habit.id }}" class="block text-xs font-medium text-[var(--color-muted-foreground)] mb-1">Intention</label>
+                                    <textarea id="habit-description-{{ habit.id }}" name="description" rows="2"
+                                        class="w-full px-3 py-1.5 text-sm border border-[var(--color-border)] rounded-lg bg-[var(--color-background)]">{{ habit.description or '' }}</textarea>
+                                </div>
+                                <button type="submit" class="px-3 py-1.5 text-sm font-medium border border-[var(--color-border)] text-[var(--color-foreground)] rounded-lg cursor-pointer hover:bg-[var(--color-muted)] transition-colors duration-200">Save changes</button>
                             </form>
                             <form method="POST" action="{{ url_for('update_habit_category', habit_id=habit.id) }}"
                                 class="flex flex-wrap items-end gap-2">
