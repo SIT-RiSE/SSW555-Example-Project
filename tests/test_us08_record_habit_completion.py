@@ -104,3 +104,32 @@ def test_yesterday_completion_does_not_hide_today_button(client):
     page = client.get('/habit-tracker')
     assert f'/habit-tracker/{habit.id}/complete'.encode() in page.data
     assert b'Completed today' not in page.data
+
+
+@pytest.mark.parametrize('history, expected_previous', [
+    ('2026-11-02', ['2026-11-02']),
+    ('2026-11-01, 2026-11-02', ['2026-11-01', '2026-11-02']),
+])
+def test_legacy_history_can_be_viewed_and_extended(client, history, expected_previous):
+    habit = Habit(name='Legacy habit', completed_dates=history)
+    db.session.add(habit)
+    db.session.commit()
+    habit_id = habit.id
+
+    assert client.get('/habit-tracker').status_code == 200
+    assert db.session.get(Habit, habit_id).completed_dates == history
+    assert client.post(f'/habit-tracker/{habit_id}/complete').status_code == 302
+    db.session.remove()
+    assert json.loads(db.session.get(Habit, habit_id).completed_dates) == [
+        *expected_previous, '2026-11-03',
+    ]
+
+
+def test_legacy_completion_today_is_shown_without_rewriting_history(client):
+    habit = Habit(name='Already completed', completed_dates='2026-11-02,2026-11-03')
+    db.session.add(habit)
+    db.session.commit()
+
+    assert b'Completed today' in client.get('/habit-tracker').data
+    client.post(f'/habit-tracker/{habit.id}/complete')
+    assert db.session.get(Habit, habit.id).completed_dates == '2026-11-02,2026-11-03'

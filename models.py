@@ -45,13 +45,25 @@ class Habit(db.Model):
         return HABIT_FREQUENCIES.get(self.frequency or DEFAULT_FREQUENCY, 'day')
 
     @property
+    def completion_dates_list(self):
+        """Read JSON history and legacy comma-separated dates without rewriting it."""
+        history = self.completed_dates or ''
+        try:
+            dates = json.loads(history)
+        except json.JSONDecodeError:
+            dates = None
+        if isinstance(dates, list):
+            return dates
+        return [day.strip() for day in history.split(',') if day.strip()]
+
+    @property
     def completed_today(self):
         """Whether a completion has been saved for the server's current day."""
-        return date.today().isoformat() in json.loads(self.completed_dates or '[]')
+        return date.today().isoformat() in self.completion_dates_list
 
     def mark_complete(self, day):
         """Append a completion without replacing history or repeating a day."""
-        dates = json.loads(self.completed_dates or '[]')
+        dates = self.completion_dates_list
         day_string = day.isoformat()
         if day_string not in dates:
             self.completed_dates = json.dumps([*dates, day_string])
