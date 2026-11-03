@@ -35,7 +35,7 @@ def test_us10_backfilling_a_missed_day_updates_history_and_streak(client):
 
     assert response.status_code == 302
     stored = db.session.get(Habit, habit.id)
-    assert stored.completion_dates == {two_days_ago, today - timedelta(days=1)}
+    assert set(stored.completed_dates_list) == {two_days_ago, today - timedelta(days=1)}
     assert stored.current_streak() == 2
 
 
@@ -68,7 +68,7 @@ def test_us10_backfill_works_with_legacy_comma_separated_history(client):
     check_in(client, habit.id, today - timedelta(days=1))
 
     stored = db.session.get(Habit, habit.id)
-    assert stored.completion_dates == {today - timedelta(days=2), today - timedelta(days=1)}
+    assert set(stored.completed_dates_list) == {today - timedelta(days=2), today - timedelta(days=1)}
 
 
 def test_us10_backfill_and_mark_complete_share_one_history(client):
@@ -80,7 +80,7 @@ def test_us10_backfill_and_mark_complete_share_one_history(client):
     client.post(f'/habit-tracker/{habit.id}/complete')
 
     stored = db.session.get(Habit, habit.id)
-    assert stored.completion_dates == {today - timedelta(days=1), today}
+    assert set(stored.completed_dates_list) == {today - timedelta(days=1), today}
     assert stored.current_streak() == 2
 
 
@@ -109,7 +109,7 @@ def test_us10_scheduled_past_day_is_accepted(client):
     habit = add_habit(scheduled_days=WEEKDAYS[yesterday.weekday()])
 
     assert check_in(client, habit.id, yesterday).status_code == 302
-    assert db.session.get(Habit, habit.id).completion_dates == {yesterday}
+    assert set(db.session.get(Habit, habit.id).completed_dates_list) == {yesterday}
 
 
 def test_us10_invalid_date_and_missing_habit_are_rejected(client):
