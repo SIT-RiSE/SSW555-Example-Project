@@ -11,6 +11,7 @@ monitor their progress, and build consistent routines.
 - Nikunj Patel
 - Neil Motiani
 - Aarnav Hariramani
+- Ayush Kakkar
 
 ## Local development
 
