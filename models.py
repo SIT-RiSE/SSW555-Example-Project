@@ -1,22 +1,37 @@
+import json
 from datetime import date, datetime, timedelta
-
+ 
+from sqlalchemy import select, update
+ 
 from extensions import db
-
-
+ 
+ 
+def _parse_completion_dates(history):
+    """Read JSON history and legacy comma-separated dates without rewriting it."""
+    history = history or ''
+    try:
+        dates = json.loads(history)
+    except json.JSONDecodeError:
+        dates = None
+    if isinstance(dates, list):
+        return dates
+    return [day.strip() for day in history.split(',') if day.strip()]
+ 
+ 
 class Category(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     name = db.Column(db.String(100, collation='NOCASE'), nullable=False, unique=True)
-
-
+ 
+ 
 #: Canonical order used whenever scheduled days are saved or displayed.
 WEEKDAYS = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"]
-
+ 
 # How often a habit is meant to be completed, mapped to the period used for
 # streak and progress calculations.
 HABIT_FREQUENCIES = {'daily': 'day', 'weekly': 'week', 'monthly': 'month'}
 DEFAULT_FREQUENCY = 'daily'
-
-
+ 
+ 
 class Habit(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     name = db.Column(db.String(100), nullable=False)
@@ -35,35 +50,77 @@ class Habit(db.Model):
     # the habit's streak.
     grace_day_enabled = db.Column(db.Boolean, nullable=False, default=False,
                                   server_default='0')
-
+ 
     @property
     def scheduled_days_list(self):
         if not self.scheduled_days:
             return []
         return self.scheduled_days.split(",")
-
+ 
+    def to_dict(self):
+        """US-11: this habit's current details as plain data for the view endpoints."""
+        return {
+            "id": self.id,
+            "name": self.name,
+            "description": self.description,
+            "category": self.category.name if self.category else None,
+            "frequency": self.frequency,
+            "reminder_time": self.reminder_time,
+            "scheduled_days": self.scheduled_days_list,
+            "created_at": self.created_at.isoformat() if self.created_at else None,
+        }
+ 
     @property
     def frequency_period(self):
         """The period a single completion covers, e.g. 'week' for a weekly habit."""
         return HABIT_FREQUENCIES.get(self.frequency or DEFAULT_FREQUENCY, 'day')
-
+ 
+ 
+    @property
+    def completed_today(self):
+        return date.today().isoformat() in _parse_completion_dates(self.completed_dates)
+ 
+    def mark_complete(self, day):
+        """Record a day once, retrying if another request changes the history.
+ 
+        Comparing the stored value in the UPDATE prevents concurrent requests
+        from adding duplicates or overwriting another day's completion.
+        """
+        day_string = day.isoformat()
+        while True:
+            previous = db.session.execute(
+                select(Habit.completed_dates).where(Habit.id == self.id)
+            ).scalar_one()
+            dates = _parse_completion_dates(previous)
+            if day_string in dates:
+                return False
+            result = db.session.execute(
+                update(Habit)
+                .where(Habit.id == self.id, Habit.completed_dates == previous)
+                .values(completed_dates=json.dumps([*dates, day_string]))
+                .execution_options(synchronize_session=False)
+            )
+            if result.rowcount == 1:
+                db.session.commit()
+                db.session.expire(self, ['completed_dates'])
+                return True
+            db.session.rollback()
+ 
     @property
     def completed_dates_list(self):
-        """Completion dates parsed from the comma-separated ISO dates column."""
-        if not self.completed_dates:
-            return []
-        return [date.fromisoformat(value.strip())
-                for value in self.completed_dates.split(",") if value.strip()]
-
+        """Completion dates as date objects (JSON or legacy comma-separated history)."""
+        return [date.fromisoformat(value)
+                for value in _parse_completion_dates(self.completed_dates)]
+ 
     def current_streak(self, today=None):
         """Consecutive completed days, honoring the weekly grace day if enabled."""
         return calculate_streak(self.completed_dates_list, today or date.today(),
                                 grace_day=self.grace_day_enabled)
-
-
+ 
+ 
 def calculate_streak(completed_dates, today, grace_day=False):
     """Count consecutive completed days ending today (or yesterday).
-
+ 
     Today not being completed yet does not break the streak. With ``grace_day``
     on, the first missed day in each Monday-to-Sunday week is skipped instead of
     ending the streak; a grace day keeps the streak alive but does not add to it.
@@ -71,7 +128,7 @@ def calculate_streak(completed_dates, today, grace_day=False):
     done = set(completed_dates)
     if not done:
         return 0
-
+ 
     day = today if today in done else today - timedelta(days=1)
     earliest = min(done)
     weeks_with_grace_used = set()
@@ -86,3 +143,4 @@ def calculate_streak(completed_dates, today, grace_day=False):
             weeks_with_grace_used.add(week)
         day -= timedelta(days=1)
     return streak
+ 
