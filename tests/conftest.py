@@ -7,6 +7,7 @@ This module provides shared fixtures used across all test files:
 """
 
 import pytest
+from sqlalchemy import create_engine
 
 from app import app as flask_app
 from extensions import db
@@ -35,11 +36,19 @@ def app(tmp_path):
 
     with flask_app.app_context():
         db.session.remove()
-        db.drop_all()
+        engines = db.engines
+        original_engine = engines[None]
+        test_engine = create_engine(f"sqlite:///{db_path}",
+                                    connect_args={"check_same_thread": False})
+        engines[None] = test_engine
         db.create_all()
-        yield flask_app
-        db.session.remove()
-        db.drop_all()
+        try:
+            yield flask_app
+        finally:
+            db.session.remove()
+            db.drop_all()
+            engines[None] = original_engine
+            test_engine.dispose()
 
 
 @pytest.fixture

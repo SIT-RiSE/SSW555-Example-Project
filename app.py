@@ -84,7 +84,7 @@ def edit_habit(habit_id):
     name = request.form.get('name', '').strip()
     if not name or len(name) > 100:
         abort(400, description='Habit name must contain 1 to 100 characters.')
-    frequency = selected_frequency()
+    frequency = selected_frequency() if 'frequency' in request.form else habit.frequency
 
     habit.name = name
     if 'description' in request.form:
