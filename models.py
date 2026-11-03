@@ -1,4 +1,7 @@
-from datetime import datetime
+import json
+from datetime import date, datetime
+
+from sqlalchemy import select, update
 
 from extensions import db
 
@@ -42,3 +45,34 @@ class Habit(db.Model):
     def frequency_period(self):
         """The period a single completion covers, e.g. 'week' for a weekly habit."""
         return HABIT_FREQUENCIES.get(self.frequency or DEFAULT_FREQUENCY, 'day')
+
+
+    @property
+    def completed_today(self):
+        return date.today().isoformat() in json.loads(self.completed_dates or '[]')
+
+    def mark_complete(self, day):
+        """Record a day once, retrying if another request changes the history.
+
+        Comparing the stored value in the UPDATE prevents concurrent requests
+        from adding duplicates or overwriting another day's completion.
+        """
+        day_string = day.isoformat()
+        while True:
+            previous = db.session.execute(
+                select(Habit.completed_dates).where(Habit.id == self.id)
+            ).scalar_one()
+            dates = json.loads(previous or '[]')
+            if day_string in dates:
+                return False
+            result = db.session.execute(
+                update(Habit)
+                .where(Habit.id == self.id, Habit.completed_dates == previous)
+                .values(completed_dates=json.dumps([*dates, day_string]))
+                .execution_options(synchronize_session=False)
+            )
+            if result.rowcount == 1:
+                db.session.commit()
+                db.session.expire(self, ['completed_dates'])
+                return True
+            db.session.rollback()

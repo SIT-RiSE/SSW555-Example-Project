@@ -83,6 +83,15 @@ def create_category():
     return redirect(url_for('habit_tracker'))
 
 
+@app.route('/habit-tracker/<int:habit_id>/complete', methods=['POST'])
+def complete_habit(habit_id):
+    habit = db.session.get(Habit, habit_id)
+    if habit is None:
+        abort(404)
+    habit.mark_complete(date.today())
+    return redirect(url_for('habit_tracker'))
+
+
 @app.route('/habit-tracker/<int:habit_id>/edit', methods=['POST'])
 def edit_habit(habit_id):
     """Update an existing habit's name, description, and frequency."""
