@@ -145,12 +145,24 @@
                     </div>
                     {% endif %}
 
-                    <form method="POST" action="{{ url_for('complete_habit', habit_id=habit.id) }}" class="mt-3">
-                        <button type="submit" {% if habit.completed_today %}disabled{% endif %}
-                            class="px-3 py-1.5 text-sm font-medium border border-[var(--color-border)] rounded-lg disabled:opacity-50 disabled:cursor-not-allowed">
-                            {{ 'Completed today' if habit.completed_today else 'Mark complete' }}
-                        </button>
-                    </form>
+                    <div class="mt-3">
+                        {% if habit.completed_today %}
+                        <button type="button" disabled aria-label="{{ habit.name }} completed today"
+                            class="min-h-[44px] px-4 py-2 text-sm font-semibold text-[var(--color-primary)] rounded-lg border border-[var(--color-border)] disabled:opacity-60 disabled:cursor-not-allowed">Completed today</button>
+                        {% elif habit.id in due_today_ids %}
+                        <form method="POST" action="{{ url_for('complete_habit', habit_id=habit.id) }}">
+                            {% if dashboard_view is defined and dashboard_view == 'today' %}
+                            <input type="hidden" name="view" value="today">
+                            {% endif %}
+                            <button type="submit" aria-label="Mark {{ habit.name }} complete for today"
+                                class="min-h-[44px] px-4 py-2 text-sm font-semibold bg-[var(--color-primary)] text-[var(--color-on-primary)] rounded-lg cursor-pointer hover:brightness-105 transition-[filter] duration-200">
+                                Mark complete
+                            </button>
+                        </form>
+                        {% else %}
+                        <p class="text-sm text-[var(--color-muted-foreground)]">Not scheduled for today</p>
+                        {% endif %}
+                    </div>
 
                     <details class="mt-3 group">
                         <summary class="text-sm font-medium text-[var(--color-primary)] cursor-pointer select-none inline-flex items-center gap-1 list-none">

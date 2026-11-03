@@ -6,6 +6,18 @@ from sqlalchemy import select, update
 from extensions import db
 
 
+def _parse_completion_dates(history):
+    """Read JSON history and legacy comma-separated dates without rewriting it."""
+    history = history or ''
+    try:
+        dates = json.loads(history)
+    except json.JSONDecodeError:
+        dates = None
+    if isinstance(dates, list):
+        return dates
+    return [day.strip() for day in history.split(',') if day.strip()]
+
+
 class Category(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     name = db.Column(db.String(100, collation='NOCASE'), nullable=False, unique=True)
@@ -62,7 +74,7 @@ class Habit(db.Model):
 
     @property
     def completed_today(self):
-        return date.today().isoformat() in json.loads(self.completed_dates or '[]')
+        return date.today().isoformat() in _parse_completion_dates(self.completed_dates)
 
     def mark_complete(self, day):
         """Record a day once, retrying if another request changes the history.
@@ -75,7 +87,7 @@ class Habit(db.Model):
             previous = db.session.execute(
                 select(Habit.completed_dates).where(Habit.id == self.id)
             ).scalar_one()
-            dates = json.loads(previous or '[]')
+            dates = _parse_completion_dates(previous)
             if day_string in dates:
                 return False
             result = db.session.execute(
