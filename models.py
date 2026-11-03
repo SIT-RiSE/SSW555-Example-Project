@@ -147,7 +147,25 @@ class Habit(db.Model):
         dates = self.completion_dates | {day}
         self.completed_dates = ','.join(d.isoformat() for d in sorted(dates))
 
+    def is_due_on(self, day):
+        """True if the habit is expected to be completed on ``day``.
+
+        A weekday schedule decides when one is set; otherwise only daily habits
+        are due every day.
+        """
+        if self.scheduled_days_list:
+            return self.is_scheduled_on(day)
+        return (self.frequency or DEFAULT_FREQUENCY) == 'daily'
+
     @property
     def recent_completions(self):
         """The five most recent completion dates, newest first."""
         return sorted(self.completion_dates, reverse=True)[:5]
+
+
+def daily_progress(habits, day):
+    """Summarise how many of the habits due on ``day`` have been completed."""
+    due = [habit for habit in habits if habit.is_due_on(day)]
+    done = sum(1 for habit in due if day in habit.completion_dates)
+    percent = round(100 * done / len(due)) if due else 0
+    return {'done': done, 'total': len(due), 'percent': percent}

@@ -13,7 +13,14 @@ app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 
 db.init_app(app)
 
-from models import DEFAULT_FREQUENCY, HABIT_FREQUENCIES, WEEKDAYS, Category, Habit  # noqa: E402
+from models import (  # noqa: E402
+    DEFAULT_FREQUENCY,
+    HABIT_FREQUENCIES,
+    WEEKDAYS,
+    Category,
+    Habit,
+    daily_progress,
+)
 
 
 @app.route('/')
@@ -35,9 +42,11 @@ def habit_tracker():
         return redirect(url_for('habit_tracker'))
 
     habits = Habit.query.order_by(Habit.created_at.desc()).all()
+    today = date.today()
     return render_template('apps/habit_tracker/index.html', page_id='habit-tracker', habits=habits,
                            categories=Category.query.order_by(Category.name).all(),
-                           frequencies=HABIT_FREQUENCIES, today=date.today())
+                           frequencies=HABIT_FREQUENCIES, today=today,
+                           progress=daily_progress(habits, today))
 
 
 def selected_frequency():
