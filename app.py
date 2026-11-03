@@ -1,4 +1,4 @@
-from datetime import datetime
+from datetime import date, datetime
 
 from flask import Flask, abort, redirect, render_template, request, url_for
 from sqlalchemy import inspect, text
@@ -71,6 +71,15 @@ def create_category():
     except IntegrityError:
         db.session.rollback()
         abort(400, description='A category with that name already exists.')
+    return redirect(url_for('habit_tracker'))
+
+
+@app.route('/habit-tracker/<int:habit_id>/complete', methods=['POST'])
+def complete_habit(habit_id):
+    habit = db.session.get(Habit, habit_id)
+    if habit is None:
+        abort(404)
+    habit.mark_complete(date.today())
     return redirect(url_for('habit_tracker'))
 
 
