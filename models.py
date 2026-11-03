@@ -136,3 +136,18 @@ class Habit(db.Model):
     @property
     def current_streak(self):
         return self.calculate_current_streak()
+
+    def is_scheduled_on(self, day):
+        """True if ``day`` is one of the habit's scheduled weekdays (any day when unscheduled)."""
+        scheduled = self.scheduled_days_list
+        return not scheduled or WEEKDAYS[day.weekday()] in scheduled
+
+    def add_completion(self, day):
+        """Record ``day`` in the completion history, keeping it sorted and unique."""
+        dates = self.completion_dates | {day}
+        self.completed_dates = ','.join(d.isoformat() for d in sorted(dates))
+
+    @property
+    def recent_completions(self):
+        """The five most recent completion dates, newest first."""
+        return sorted(self.completion_dates, reverse=True)[:5]

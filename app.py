@@ -1,4 +1,4 @@
-from datetime import datetime
+from datetime import date, datetime
 
 from flask import Flask, abort, redirect, render_template, request, url_for
 from sqlalchemy import inspect, text
@@ -37,7 +37,7 @@ def habit_tracker():
     habits = Habit.query.order_by(Habit.created_at.desc()).all()
     return render_template('apps/habit_tracker/index.html', page_id='habit-tracker', habits=habits,
                            categories=Category.query.order_by(Category.name).all(),
-                           frequencies=HABIT_FREQUENCIES)
+                           frequencies=HABIT_FREQUENCIES, today=date.today())
 
 
 def selected_frequency():
@@ -137,6 +137,27 @@ def update_habit_schedule(habit_id):
     habit.scheduled_days = ','.join(day for day in WEEKDAYS if day in selected_days)
     db.session.commit()
     return redirect(url_for('habit_tracker'))
+
+@app.route('/habit-tracker/<int:habit_id>/check-in', methods=['POST'])
+def log_check_in(habit_id):
+    """Record a completion for today or back-fill one for a missed past date."""
+    habit = db.session.get(Habit, habit_id)
+    if habit is None:
+        abort(404)
+
+    try:
+        completed_on = date.fromisoformat(request.form.get('completed_on', '').strip())
+    except ValueError:
+        abort(400, description='Check-in date must use the YYYY-MM-DD format.')
+    if completed_on > date.today():
+        abort(400, description='Check-ins cannot be logged for future dates.')
+    if not habit.is_scheduled_on(completed_on):
+        abort(400, description='Check-ins can only be logged for scheduled days.')
+
+    habit.add_completion(completed_on)
+    db.session.commit()
+    return redirect(url_for('habit_tracker'))
+
 
 def init_db():
     with app.app_context():
