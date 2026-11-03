@@ -138,6 +138,17 @@ def update_habit_schedule(habit_id):
     db.session.commit()
     return redirect(url_for('habit_tracker'))
 
+@app.route('/habit-tracker/<int:habit_id>/grace-day', methods=['POST'])
+def update_habit_grace_day(habit_id):
+    """Turn the weekly grace day on or off for an existing habit."""
+    habit = db.session.get(Habit, habit_id)
+    if habit is None:
+        abort(404)
+    habit.grace_day_enabled = request.form.get('enabled') == 'on'
+    db.session.commit()
+    return redirect(url_for('habit_tracker'))
+
+
 def init_db():
     with app.app_context():
         db.create_all()
@@ -154,6 +165,10 @@ def init_db():
                 ))
             if 'scheduled_days' not in habit_columns:
                 connection.execute(text('ALTER TABLE habit ADD COLUMN scheduled_days TEXT'))
+            if 'grace_day_enabled' not in habit_columns:
+                connection.execute(text(
+                    'ALTER TABLE habit ADD COLUMN grace_day_enabled BOOLEAN NOT NULL DEFAULT 0'
+                ))
 
 # Called at import time so the schema exists under `flask run` too, not just
 # `python app.py` — `flask run` imports this module without ever reaching
