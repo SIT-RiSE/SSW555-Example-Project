@@ -1,4 +1,5 @@
-from datetime import datetime
+import json
+from datetime import date, datetime
 
 from extensions import db
 
@@ -42,3 +43,15 @@ class Habit(db.Model):
     def frequency_period(self):
         """The period a single completion covers, e.g. 'week' for a weekly habit."""
         return HABIT_FREQUENCIES.get(self.frequency or DEFAULT_FREQUENCY, 'day')
+
+    @property
+    def completed_today(self):
+        """Whether a completion has been saved for the server's current day."""
+        return date.today().isoformat() in json.loads(self.completed_dates or '[]')
+
+    def mark_complete(self, day):
+        """Append a completion without replacing history or repeating a day."""
+        dates = json.loads(self.completed_dates or '[]')
+        day_string = day.isoformat()
+        if day_string not in dates:
+            self.completed_dates = json.dumps([*dates, day_string])

@@ -1,4 +1,4 @@
-from datetime import datetime
+from datetime import date, datetime
 
 from flask import Flask, abort, redirect, render_template, request, url_for
 from sqlalchemy import inspect, text
@@ -37,7 +37,27 @@ def habit_tracker():
     habits = Habit.query.order_by(Habit.created_at.desc()).all()
     return render_template('apps/habit_tracker/index.html', page_id='habit-tracker', habits=habits,
                            categories=Category.query.order_by(Category.name).all(),
-                           frequencies=HABIT_FREQUENCIES)
+                           frequencies=HABIT_FREQUENCIES,
+                           due_today_ids={habit.id for habit in habits
+                                          if not habit.scheduled_days_list
+                                          or WEEKDAYS[date.today().weekday()]
+                                          in habit.scheduled_days_list})
+
+
+@app.route('/habit-tracker/<int:habit_id>/complete', methods=['POST'])
+def complete_habit(habit_id):
+    """Record a due habit's completion for today and return to the dashboard."""
+    habit = db.session.get(Habit, habit_id)
+    if habit is None:
+        abort(404)
+    today = date.today()
+    if habit.scheduled_days_list and WEEKDAYS[today.weekday()] not in habit.scheduled_days_list:
+        abort(400, description='This habit is not scheduled for today.')
+    habit.mark_complete(today)
+    db.session.commit()
+    if request.form.get('view') == 'today':
+        return redirect(url_for('habit_tracker', view='today'))
+    return redirect(url_for('habit_tracker'))
 
 
 def selected_frequency():
