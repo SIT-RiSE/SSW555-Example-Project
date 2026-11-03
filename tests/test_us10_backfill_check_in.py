@@ -5,6 +5,7 @@ As a user, I want to record a past habit completion that I forgot to enter so
 that my history matches what I actually completed.
 """
 
+import json
 from datetime import date, timedelta
 
 from extensions import db
@@ -49,17 +50,38 @@ def test_us10_backfill_is_shown_in_history_and_streak_on_page(client):
     assert '1 day streak' in page
 
 
-def test_us10_history_is_kept_sorted_and_unique(client):
+def test_us10_backfilling_the_same_day_twice_records_it_once(client):
     today = date.today()
-    habit = add_habit(completed_dates=(today - timedelta(days=1)).isoformat())
+    habit = add_habit()
 
     check_in(client, habit.id, today - timedelta(days=3))
     check_in(client, habit.id, today - timedelta(days=3))
 
     stored = db.session.get(Habit, habit.id)
-    assert stored.completed_dates == ','.join(
-        d.isoformat() for d in (today - timedelta(days=3), today - timedelta(days=1))
-    )
+    assert json.loads(stored.completed_dates) == [(today - timedelta(days=3)).isoformat()]
+
+
+def test_us10_backfill_works_with_legacy_comma_separated_history(client):
+    today = date.today()
+    habit = add_habit(completed_dates=(today - timedelta(days=2)).isoformat())
+
+    check_in(client, habit.id, today - timedelta(days=1))
+
+    stored = db.session.get(Habit, habit.id)
+    assert stored.completion_dates == {today - timedelta(days=2), today - timedelta(days=1)}
+
+
+def test_us10_backfill_and_mark_complete_share_one_history(client):
+    """Back-filled days and today's Mark complete feed the same streak."""
+    today = date.today()
+    habit = add_habit()
+
+    check_in(client, habit.id, today - timedelta(days=1))
+    client.post(f'/habit-tracker/{habit.id}/complete')
+
+    stored = db.session.get(Habit, habit.id)
+    assert stored.completion_dates == {today - timedelta(days=1), today}
+    assert stored.current_streak == 2
 
 
 def test_us10_future_dates_are_rejected(client):

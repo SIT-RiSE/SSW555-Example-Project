@@ -1,6 +1,6 @@
 from datetime import date, datetime
 
-from flask import Flask, abort, redirect, render_template, request, url_for
+from flask import Flask, abort, jsonify, redirect, render_template, request, url_for
 from sqlalchemy import inspect, text
 from sqlalchemy.exc import IntegrityError
 
@@ -42,11 +42,55 @@ def habit_tracker():
         return redirect(url_for('habit_tracker'))
 
     habits = Habit.query.order_by(Habit.created_at.desc()).all()
+    dashboard_view = request.args.get('view', 'all')
+    if dashboard_view not in ('all', 'today'):
+        abort(400, description='View must be all or today.')
     today = date.today()
+    if dashboard_view == 'today':
+        weekday = WEEKDAYS[today.weekday()]
+        habits = [habit for habit in habits
+                  if not habit.scheduled_days_list or weekday in habit.scheduled_days_list]
     return render_template('apps/habit_tracker/index.html', page_id='habit-tracker', habits=habits,
+                           dashboard_view=dashboard_view, today=today,
                            categories=Category.query.order_by(Category.name).all(),
-                           frequencies=HABIT_FREQUENCIES, today=today,
-                           progress=daily_progress(habits, today))
+                           frequencies=HABIT_FREQUENCIES,
+                           progress=daily_progress(habits, today),
+                           due_today_ids={habit.id for habit in habits
+                                          if not habit.scheduled_days_list
+                                          or WEEKDAYS[date.today().weekday()]
+                                          in habit.scheduled_days_list})
+
+
+@app.route('/habit-tracker/<int:habit_id>/complete', methods=['POST'])
+def complete_habit(habit_id):
+    """Record a due habit's completion for today and return to the dashboard."""
+    habit = db.session.get(Habit, habit_id)
+    if habit is None:
+        abort(404)
+    today = date.today()
+    if habit.scheduled_days_list and WEEKDAYS[today.weekday()] not in habit.scheduled_days_list:
+        abort(400, description='This habit is not scheduled for today.')
+    habit.mark_complete(today)
+    if request.form.get('view') == 'today':
+        return redirect(url_for('habit_tracker', view='today'))
+    return redirect(url_for('habit_tracker'))
+
+
+@app.route('/habit-tracker/habits')
+def list_current_habits():
+    """US-11: all current habits, newest first."""
+    habits = Habit.query.order_by(Habit.created_at.desc()).all()
+    return jsonify(count=len(habits), habits=[habit.to_dict() for habit in habits])
+
+
+@app.route('/habit-tracker/habits/<int:habit_id>')
+def view_habit(habit_id):
+    """US-11: the full details of one current habit."""
+    habit = db.session.get(Habit, habit_id)
+    if habit is None:
+        abort(404)
+    return jsonify(habit.to_dict())
+
 
 
 def selected_frequency():
@@ -93,7 +137,7 @@ def edit_habit(habit_id):
     name = request.form.get('name', '').strip()
     if not name or len(name) > 100:
         abort(400, description='Habit name must contain 1 to 100 characters.')
-    frequency = selected_frequency()
+    frequency = selected_frequency() if 'frequency' in request.form else habit.frequency
 
     habit.name = name
     if 'description' in request.form:
@@ -163,8 +207,7 @@ def log_check_in(habit_id):
     if not habit.is_scheduled_on(completed_on):
         abort(400, description='Check-ins can only be logged for scheduled days.')
 
-    habit.add_completion(completed_on)
-    db.session.commit()
+    habit.mark_complete(completed_on)
     return redirect(url_for('habit_tracker'))
 
 

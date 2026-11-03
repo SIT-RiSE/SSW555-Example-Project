@@ -1,6 +1,21 @@
+import json
 from datetime import date, datetime, timedelta
 
+from sqlalchemy import select, update
+
 from extensions import db
+
+
+def _parse_completion_dates(history):
+    """Read JSON history and legacy comma-separated dates without rewriting it."""
+    history = history or ''
+    try:
+        dates = json.loads(history)
+    except json.JSONDecodeError:
+        dates = None
+    if isinstance(dates, list):
+        return dates
+    return [day.strip() for day in history.split(',') if day.strip()]
 
 
 class Category(db.Model):
@@ -38,18 +53,62 @@ class Habit(db.Model):
             return []
         return self.scheduled_days.split(",")
 
+    def to_dict(self):
+        """US-11: this habit's current details as plain data for the view endpoints."""
+        return {
+            "id": self.id,
+            "name": self.name,
+            "description": self.description,
+            "category": self.category.name if self.category else None,
+            "frequency": self.frequency,
+            "reminder_time": self.reminder_time,
+            "scheduled_days": self.scheduled_days_list,
+            "created_at": self.created_at.isoformat() if self.created_at else None,
+        }
+
     @property
     def frequency_period(self):
         """The period a single completion covers, e.g. 'week' for a weekly habit."""
         return HABIT_FREQUENCIES.get(self.frequency or DEFAULT_FREQUENCY, 'day')
 
+
+    @property
+    def completed_today(self):
+        return date.today().isoformat() in _parse_completion_dates(self.completed_dates)
+
+    def mark_complete(self, day):
+        """Record a day once, retrying if another request changes the history.
+
+        Comparing the stored value in the UPDATE prevents concurrent requests
+        from adding duplicates or overwriting another day's completion.
+        """
+        day_string = day.isoformat()
+        while True:
+            previous = db.session.execute(
+                select(Habit.completed_dates).where(Habit.id == self.id)
+            ).scalar_one()
+            dates = _parse_completion_dates(previous)
+            if day_string in dates:
+                return False
+            result = db.session.execute(
+                update(Habit)
+                .where(Habit.id == self.id, Habit.completed_dates == previous)
+                .values(completed_dates=json.dumps([*dates, day_string]))
+                .execution_options(synchronize_session=False)
+            )
+            if result.rowcount == 1:
+                db.session.commit()
+                db.session.expire(self, ['completed_dates'])
+                return True
+            db.session.rollback()
+
     @property
     def completion_dates(self):
         """Return the valid, unique ISO dates stored in the completion history."""
         parsed_dates = set()
-        for value in (self.completed_dates or '').split(','):
+        for value in _parse_completion_dates(self.completed_dates):
             try:
-                parsed_dates.add(date.fromisoformat(value.strip()))
+                parsed_dates.add(date.fromisoformat(str(value).strip()))
             except ValueError:
                 # Ignore malformed legacy entries rather than breaking the dashboard.
                 continue
@@ -142,21 +201,6 @@ class Habit(db.Model):
         scheduled = self.scheduled_days_list
         return not scheduled or WEEKDAYS[day.weekday()] in scheduled
 
-    def add_completion(self, day):
-        """Record ``day`` in the completion history, keeping it sorted and unique."""
-        dates = self.completion_dates | {day}
-        self.completed_dates = ','.join(d.isoformat() for d in sorted(dates))
-
-    def is_due_on(self, day):
-        """True if the habit is expected to be completed on ``day``.
-
-        A weekday schedule decides when one is set; otherwise only daily habits
-        are due every day.
-        """
-        if self.scheduled_days_list:
-            return self.is_scheduled_on(day)
-        return (self.frequency or DEFAULT_FREQUENCY) == 'daily'
-
     @property
     def recent_completions(self):
         """The five most recent completion dates, newest first."""
@@ -165,7 +209,7 @@ class Habit(db.Model):
 
 def daily_progress(habits, day):
     """Summarise how many of the habits due on ``day`` have been completed."""
-    due = [habit for habit in habits if habit.is_due_on(day)]
+    due = [habit for habit in habits if habit.is_scheduled_on(day)]
     done = sum(1 for habit in due if day in habit.completion_dates)
     percent = round(100 * done / len(due)) if due else 0
     return {'done': done, 'total': len(due), 'percent': percent}

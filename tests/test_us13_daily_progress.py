@@ -5,6 +5,7 @@ As a user, I want to see my daily progress so that I know how much of my
 routine I have completed.
 """
 
+import json
 from datetime import date, timedelta
 
 from extensions import db
@@ -25,15 +26,21 @@ def test_us13_progress_counts_completed_habits_due_today():
     assert daily_progress(habits, TODAY) == {'done': 2, 'total': 3, 'percent': 67}
 
 
-def test_us13_habits_not_due_today_are_excluded():
+def test_us13_habits_not_scheduled_today_are_excluded():
+    """Matches the Today view: unscheduled habits count every day, scheduled ones on their days."""
     habits = [
         Habit(name='Read'),
         Habit(name='Swim', scheduled_days='Tue,Thu', completed_dates=TODAY.isoformat()),
         Habit(name='Review budget', frequency='weekly'),
-        Habit(name='Call family', frequency='monthly'),
     ]
 
-    assert daily_progress(habits, TODAY) == {'done': 0, 'total': 1, 'percent': 0}
+    assert daily_progress(habits, TODAY) == {'done': 0, 'total': 2, 'percent': 0}
+
+
+def test_us13_reads_completions_saved_by_mark_complete():
+    habits = [Habit(name='Read', completed_dates=json.dumps([TODAY.isoformat()]))]
+
+    assert daily_progress(habits, TODAY) == {'done': 1, 'total': 1, 'percent': 100}
 
 
 def test_us13_earlier_completions_do_not_count_for_today():
@@ -48,19 +55,18 @@ def test_us13_no_habits_due_gives_zero_progress():
 
 def test_us13_progress_updates_on_page_when_a_habit_is_completed(client):
     """AC: Completing habits updates the displayed daily progress."""
-    today = date.today()
     read = Habit(name='Read')
     write = Habit(name='Write')
     db.session.add_all([read, write])
     db.session.commit()
 
     before = client.get('/habit-tracker').data.decode()
-    client.post(f'/habit-tracker/{read.id}/check-in', data={'completed_on': today.isoformat()})
+    client.post(f'/habit-tracker/{read.id}/complete')
     after = client.get('/habit-tracker').data.decode()
 
     assert '0 of 2 habits done · 0%' in before
     assert '1 of 2 habits done · 50%' in after
-    assert after.count('Done today') == 1
+    assert after.count('Completed today') == 1
 
 
 def test_us13_page_shows_message_when_nothing_is_scheduled_today(client):
