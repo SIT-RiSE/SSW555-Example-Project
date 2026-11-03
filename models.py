@@ -46,6 +46,10 @@ class Habit(db.Model):
     completed_dates = db.Column(db.Text)
     # Comma-separated subset of WEEKDAYS. Empty/None means no schedule has been set yet.
     scheduled_days = db.Column(db.Text)
+    # US-07: when on, one missed day per calendar week (Mon-Sun) does not break
+    # the habit's streak.
+    grace_day_enabled = db.Column(db.Boolean, nullable=False, default=False,
+                                  server_default='0')
 
     @property
     def scheduled_days_list(self):
@@ -101,6 +105,20 @@ class Habit(db.Model):
                 db.session.expire(self, ['completed_dates'])
                 return True
             db.session.rollback()
+
+    @property
+    def completed_dates_list(self):
+        """Completion dates as date objects (JSON or legacy comma-separated history)."""
+        return [date.fromisoformat(value)
+                for value in _parse_completion_dates(self.completed_dates)]
+
+    def current_streak(self, today=None):
+        """Current streak: US-07's grace-day count when enabled, otherwise the
+        schedule- and frequency-aware count from US-14."""
+        today = today or date.today()
+        if self.grace_day_enabled:
+            return calculate_streak(self.completed_dates_list, today, grace_day=True)
+        return self.calculate_current_streak(as_of=today)
 
     @property
     def completion_dates(self):
@@ -192,10 +210,6 @@ class Habit(db.Model):
             current_month = previous_month(current_month)
         return streak
 
-    @property
-    def current_streak(self):
-        return self.calculate_current_streak()
-
     def is_scheduled_on(self, day):
         """True if ``day`` is one of the habit's scheduled weekdays (any day when unscheduled)."""
         scheduled = self.scheduled_days_list
@@ -205,3 +219,30 @@ class Habit(db.Model):
     def recent_completions(self):
         """The five most recent completion dates, newest first."""
         return sorted(self.completion_dates, reverse=True)[:5]
+
+
+def calculate_streak(completed_dates, today, grace_day=False):
+    """Count consecutive completed days ending today (or yesterday).
+
+    Today not being completed yet does not break the streak. With ``grace_day``
+    on, the first missed day in each Monday-to-Sunday week is skipped instead of
+    ending the streak; a grace day keeps the streak alive but does not add to it.
+    """
+    done = set(completed_dates)
+    if not done:
+        return 0
+
+    day = today if today in done else today - timedelta(days=1)
+    earliest = min(done)
+    weeks_with_grace_used = set()
+    streak = 0
+    while day >= earliest:
+        if day in done:
+            streak += 1
+        else:
+            week = tuple(day.isocalendar())[:2]
+            if not grace_day or week in weeks_with_grace_used:
+                break
+            weeks_with_grace_used.add(week)
+        day -= timedelta(days=1)
+    return streak

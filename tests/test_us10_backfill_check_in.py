@@ -29,14 +29,14 @@ def test_us10_backfilling_a_missed_day_updates_history_and_streak(client):
     today = date.today()
     two_days_ago = today - timedelta(days=2)
     habit = add_habit(completed_dates=two_days_ago.isoformat())
-    assert habit.current_streak == 0  # yesterday was missed
+    assert habit.current_streak() == 0  # yesterday was missed
 
     response = check_in(client, habit.id, today - timedelta(days=1))
 
     assert response.status_code == 302
     stored = db.session.get(Habit, habit.id)
     assert stored.completion_dates == {two_days_ago, today - timedelta(days=1)}
-    assert stored.current_streak == 2
+    assert stored.current_streak() == 2
 
 
 def test_us10_backfill_is_shown_in_history_and_streak_on_page(client):
@@ -81,7 +81,7 @@ def test_us10_backfill_and_mark_complete_share_one_history(client):
 
     stored = db.session.get(Habit, habit.id)
     assert stored.completion_dates == {today - timedelta(days=1), today}
-    assert stored.current_streak == 2
+    assert stored.current_streak() == 2
 
 
 def test_us10_future_dates_are_rejected(client):
@@ -118,3 +118,13 @@ def test_us10_invalid_date_and_missing_habit_are_rejected(client):
     assert check_in(client, habit.id, 'not-a-date').status_code == 400
     assert check_in(client, habit.id, '').status_code == 400
     assert check_in(client, 9999, date.today()).status_code == 404
+
+
+def test_us10_backfill_counts_toward_grace_day_streak(client):
+    """A back-filled day also feeds the US-07 grace-day streak."""
+    today = date.today()
+    habit = add_habit(grace_day_enabled=True)
+
+    check_in(client, habit.id, today - timedelta(days=1))
+
+    assert db.session.get(Habit, habit.id).current_streak() == 1
