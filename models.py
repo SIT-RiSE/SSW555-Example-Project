@@ -41,6 +41,19 @@ class Habit(db.Model):
             return []
         return self.scheduled_days.split(",")
 
+    def to_dict(self):
+        """US-11: this habit's current details as plain data for the view endpoints."""
+        return {
+            "id": self.id,
+            "name": self.name,
+            "description": self.description,
+            "category": self.category.name if self.category else None,
+            "frequency": self.frequency,
+            "reminder_time": self.reminder_time,
+            "scheduled_days": self.scheduled_days_list,
+            "created_at": self.created_at.isoformat() if self.created_at else None,
+        }
+
     @property
     def frequency_period(self):
         """The period a single completion covers, e.g. 'week' for a weekly habit."""
