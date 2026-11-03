@@ -25,3 +25,13 @@ Run the same checks used by CI:
 uv run ruff check .
 uv run pytest -v
 ```
+
+## Today's habits (US-12)
+
+Choose **Today** on the Habit Tracker (`/habit-tracker?view=today`) to see
+habits scheduled for the server's current weekday. Habits without a weekday
+schedule remain available every day. Frequency defines the progress/streak
+period independently of the weekday schedule. The view recalculates on each
+request, including after schedule changes or day rollover. **All habits**
+returns to the full list for managing schedules; the default view stays the
+full list.
