@@ -54,7 +54,6 @@ def complete_habit(habit_id):
     if habit.scheduled_days_list and WEEKDAYS[today.weekday()] not in habit.scheduled_days_list:
         abort(400, description='This habit is not scheduled for today.')
     habit.mark_complete(today)
-    db.session.commit()
     if request.form.get('view') == 'today':
         return redirect(url_for('habit_tracker', view='today'))
     return redirect(url_for('habit_tracker'))

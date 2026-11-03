@@ -11,7 +11,7 @@ def habit(app):
     category = Category(name='Learning')
     habit = Habit(name='Read', description='Ten pages', frequency='weekly',
                   category=category, reminder_time='09:00', scheduled_days='Mon,Fri',
-                  completed_dates='2026-11-01')
+                  completed_dates='["2026-11-01"]')
     db.session.add(habit)
     db.session.commit()
     return habit
@@ -32,7 +32,7 @@ def test_edit_saves_and_displays_changes_without_losing_history(client, habit):
     assert stored.category_id == category_id
     assert stored.reminder_time == '09:00'
     assert stored.scheduled_days == 'Mon,Fri'
-    assert stored.completed_dates == '2026-11-01'
+    assert stored.completed_dates == '["2026-11-01"]'
     assert Habit.query.count() == 1
     page = client.get('/habit-tracker').data
     assert b'Evening reading' in page and b'Twenty pages' in page and b'Monthly' in page
