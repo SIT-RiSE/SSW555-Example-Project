@@ -93,6 +93,23 @@
             {% endif %}
         </div>
 
+        <div class="mb-5 p-4 rounded-xl bg-[var(--color-muted)]" data-testid="daily-progress">
+            <div class="flex items-baseline justify-between gap-2 mb-2">
+                <span class="text-sm font-semibold text-[var(--color-foreground)]">Today's progress</span>
+                {% if progress.total %}
+                <span class="text-sm text-[var(--color-muted-foreground)]">{{ progress.done }} of {{ progress.total }} habit{{ 's' if progress.total != 1 else '' }} done · {{ progress.percent }}%</span>
+                {% endif %}
+            </div>
+            {% if progress.total %}
+            <div class="h-2 rounded-full bg-[var(--color-background)] overflow-hidden" role="progressbar"
+                aria-valuemin="0" aria-valuemax="100" aria-valuenow="{{ progress.percent }}" aria-label="Today's progress">
+                <div class="h-full rounded-full bg-[var(--color-primary)]" style="width: {{ progress.percent }}%"></div>
+            </div>
+            {% else %}
+            <p class="text-sm text-[var(--color-muted-foreground)]">No habits are scheduled for today.</p>
+            {% endif %}
+        </div>
+
         {% if habits %}
             <div class="space-y-3 max-h-[32rem] overflow-y-auto pr-1">
                 {% for habit in habits %}

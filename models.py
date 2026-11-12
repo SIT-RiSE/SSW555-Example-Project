@@ -166,3 +166,11 @@ def calculate_streak_status(completed_dates, today, grace_day=False, scheduled_d
 def calculate_streak(completed_dates, today, grace_day=False, scheduled_days=None):
     """Count completed scheduled days in the current streak."""
     return calculate_streak_status(completed_dates, today, grace_day, scheduled_days)[0]
+
+
+def daily_progress(habits, day):
+    """Summarise how many of the habits due on ``day`` have been completed."""
+    due = [habit for habit in habits if habit.is_scheduled_on(day)]
+    done = sum(1 for habit in due if day in habit.completed_dates_list)
+    percent = round(100 * done / len(due)) if due else 0
+    return {'done': done, 'total': len(due), 'percent': percent}
