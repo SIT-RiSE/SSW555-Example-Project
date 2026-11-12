@@ -328,3 +328,28 @@ db.session.commit()
 ## Troubleshooting
 
 See [TROUBLESHOOTING.md](TROUBLESHOOTING.md) for common database-related issues and solutions.
+
+## Custom habit categories (US-05)
+
+Categories are saved in the `category` table with a unique, case-insensitive name
+(up to 100 characters). Habits optionally reference a category through `category_id`.
+Create a category on the Habit Tracker page, then select it when creating a habit
+or use an existing habit's Category selector and Save Category button. Select
+Uncategorized to remove an assignment.
+
+Before serving an existing database, run `python -c 'from app import init_db; init_db()'`.
+Starting with `python app.py` also runs this upgrade automatically. It creates the
+category table and adds the nullable category reference to existing habits without
+resetting data. Repeating the upgrade is safe.
+
+## Habit frequency (US-03)
+
+Each habit stores a `frequency` of `daily`, `weekly`, or `monthly` (default `daily`).
+Choose it when creating a habit, or change it with an existing habit's Name/Frequency
+fields and the Save Habit button (`POST /habit-tracker/<id>/edit`). Any other value is
+rejected with a 400 and leaves the habit unchanged. `Habit.frequency_period` gives the
+matching period (`day`, `week`, `month`) so streak and progress calculations count
+completions per period rather than per day.
+
+`init_db()` adds the `frequency` column to existing databases, filling existing
+habits with `daily`.

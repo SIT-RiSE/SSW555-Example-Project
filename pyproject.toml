@@ -1,7 +1,7 @@
 [project]
-name = "ssw555-example-project"
+name = "routine-rebels"
 version = "0.1.0"
-description = "SSW555 Student Starter Pack - Flask web application templates"
+description = "Routine Rebels - a daily habit tracker for SSW555"
 readme = "README.md"
 requires-python = ">=3.9"
 dependencies = [

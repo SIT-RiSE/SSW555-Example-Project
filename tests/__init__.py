@@ -1,8 +1,8 @@
 """
-Test suite for SSW555 Example Project.
+Test suite for Routine Rebels.
 
 Test Organization:
-- test_models.py: Unit tests for database models (Habit, MoodEntry, Expense, Recipe)
+- test_models.py: Unit tests for the Habit model
 - test_routes.py: Integration tests for HTTP endpoints and form submissions
 - conftest.py: Shared pytest fixtures (app, client)
 
