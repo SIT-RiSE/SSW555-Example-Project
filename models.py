@@ -132,6 +132,13 @@ class Habit(db.Model):
         return sorted(set(self.completed_dates_list), reverse=True)[:5]
 
 
+    def completion_history(self, start=None, end=None):
+        """US-16: every completed day, newest first, optionally limited to a date range."""
+        return sorted(
+            {day for day in self.completed_dates_list
+             if (start is None or day >= start) and (end is None or day <= end)},
+            reverse=True)
+
 def calculate_streak_status(completed_dates, today, grace_day=False, scheduled_days=None):
     """Use one grace day per Mon-Sun week, considering only scheduled days.
 

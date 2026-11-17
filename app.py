@@ -84,6 +84,38 @@ def view_habit(habit_id):
     return jsonify(habit.to_dict())
 
 
+def history_date_arg(name):
+    value = request.args.get(name, '').strip()
+    if not value:
+        return None
+    try:
+        return date.fromisoformat(value)
+    except ValueError:
+        abort(400, description=f'{name} must use the YYYY-MM-DD format.')
+
+
+@app.route('/habit-tracker/habits/<int:habit_id>/history')
+def view_completion_history(habit_id):
+    """US-16: a habit's completion history, newest first.
+
+    Optional ``start`` and ``end`` query parameters (YYYY-MM-DD) limit the range.
+    """
+    habit = db.session.get(Habit, habit_id)
+    if habit is None:
+        abort(404)
+    start, end = history_date_arg('start'), history_date_arg('end')
+    if start and end and start > end:
+        abort(400, description='start must be on or before end.')
+    completions = habit.completion_history(start, end)
+    return jsonify(
+        habit_id=habit.id,
+        name=habit.name,
+        total_completions=len(completions),
+        current_streak=habit.current_streak(),
+        completions=[day.isoformat() for day in completions],
+    )
+
+
 
 def selected_frequency():
     frequency = request.form.get('frequency', '').strip().lower() or DEFAULT_FREQUENCY
