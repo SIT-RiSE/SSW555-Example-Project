@@ -103,6 +103,11 @@
                             <span class="text-xs font-medium text-[var(--color-on-accent)] bg-[var(--color-accent)] px-2 py-0.5 rounded-full" data-testid="habit-frequency">
                                 {{ habit.frequency|capitalize }}
                             </span>
+                            {% if habit.category %}
+                            <span class="text-xs font-medium text-[var(--color-foreground)] bg-[var(--color-muted)] border border-[var(--color-border)] px-2 py-0.5 rounded-full" data-testid="habit-category">
+                                Category: {{ habit.category.name }}
+                            </span>
+                            {% endif %}
                         </div>
                         <span class="text-xs text-[var(--color-muted-foreground)] whitespace-nowrap pt-0.5">
                             {{ habit.created_at.strftime('%b %d') }}
