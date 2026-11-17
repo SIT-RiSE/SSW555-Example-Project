@@ -196,6 +196,32 @@ def update_habit_reminder(habit_id):
             abort(400, description='Reminder time must use the HH:MM format.')
 
     habit.reminder_time = reminder_time or None
+    if reminder_time:
+        # A newly chosen time replaces any reminder that was turned off.
+        habit.paused_reminder_time = None
+    db.session.commit()
+    return redirect(url_for('habit_tracker'))
+
+
+@app.route('/habit-tracker/<int:habit_id>/reminder/off', methods=['POST'])
+def turn_off_reminder(habit_id):
+    """US-23: turn a habit's reminder off without losing its time."""
+    habit = db.session.get(Habit, habit_id)
+    if habit is None:
+        abort(404)
+    habit.turn_off_reminder()
+    db.session.commit()
+    return redirect(url_for('habit_tracker'))
+
+
+@app.route('/habit-tracker/<int:habit_id>/reminder/on', methods=['POST'])
+def turn_on_reminder(habit_id):
+    """US-23: turn a previously turned-off reminder back on."""
+    habit = db.session.get(Habit, habit_id)
+    if habit is None:
+        abort(404)
+    if not habit.turn_on_reminder():
+        abort(400, description='This habit has no reminder to turn back on.')
     db.session.commit()
     return redirect(url_for('habit_tracker'))
 
@@ -265,6 +291,10 @@ def init_db():
             if 'grace_day_enabled' not in habit_columns:
                 connection.execute(text(
                     'ALTER TABLE habit ADD COLUMN grace_day_enabled BOOLEAN NOT NULL DEFAULT 0'
+                ))
+            if 'paused_reminder_time' not in habit_columns:
+                connection.execute(text(
+                    'ALTER TABLE habit ADD COLUMN paused_reminder_time VARCHAR(5)'
                 ))
 
 # Called at import time so the schema exists under `flask run` too, not just

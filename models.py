@@ -40,6 +40,8 @@ class Habit(db.Model):
     category = db.relationship("Category")
     # Stored in 24-hour HH:MM format so it can be used directly by time inputs.
     reminder_time = db.Column(db.String(5), nullable=True)
+    # US-23: a turned-off reminder keeps its time here so it can be turned back on.
+    paused_reminder_time = db.Column(db.String(5), nullable=True)
     frequency = db.Column(db.String(10), nullable=False, default=DEFAULT_FREQUENCY,
                           server_default=DEFAULT_FREQUENCY)
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
@@ -66,9 +68,31 @@ class Habit(db.Model):
             "category": self.category.name if self.category else None,
             "frequency": self.frequency,
             "reminder_time": self.reminder_time,
+            "reminder_on": self.reminder_on,
             "scheduled_days": self.scheduled_days_list,
             "created_at": self.created_at.isoformat() if self.created_at else None,
         }
+
+    @property
+    def reminder_on(self):
+        """US-23: True while the habit has an active reminder."""
+        return self.reminder_time is not None
+
+    def turn_off_reminder(self):
+        """US-23: stop the reminder but remember its time."""
+        if self.reminder_time:
+            self.paused_reminder_time = self.reminder_time
+            self.reminder_time = None
+
+    def turn_on_reminder(self):
+        """US-23: restore a turned-off reminder. Returns False if there is none to restore."""
+        if self.reminder_time:
+            return True
+        if not self.paused_reminder_time:
+            return False
+        self.reminder_time = self.paused_reminder_time
+        self.paused_reminder_time = None
+        return True
 
     @property
     def frequency_period(self):
