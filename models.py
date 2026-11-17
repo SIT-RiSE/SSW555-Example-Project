@@ -157,7 +157,11 @@ class Habit(db.Model):
 
 
     def completion_history(self, start=None, end=None):
-        """US-16: every completed day, newest first, optionally limited to a date range."""
+        """Every recorded day, newest first, optionally limited to a date range.
+
+        History is independent of the current schedule: editing a habit must
+        not hide completions that fall outside its new scheduled weekdays.
+        """
         return sorted(
             {day for day in self.completed_dates_list
              if (start is None or day >= start) and (end is None or day <= end)},
