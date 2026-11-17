@@ -171,6 +171,22 @@ def edit_habit(habit_id):
     return redirect(url_for('habit_tracker'))
 
 
+@app.route('/habit-tracker/<int:habit_id>/delete', methods=['GET', 'POST'])
+def delete_habit(habit_id):
+    """Confirm before permanently removing a habit, its history, and reminders."""
+    habit = db.session.get(Habit, habit_id)
+    if habit is None:
+        abort(404)
+    if request.method == 'POST':
+        if request.form.get('confirm') != 'delete':
+            abort(400, description='Confirm deletion before removing this habit.')
+        db.session.delete(habit)
+        db.session.commit()
+        return redirect(url_for('habit_tracker'))
+    return render_template('apps/habit_tracker/delete.html',
+                           page_id='habit-tracker', habit=habit)
+
+
 @app.route('/habit-tracker/<int:habit_id>/category', methods=['POST'])
 def update_habit_category(habit_id):
     habit = db.session.get(Habit, habit_id)

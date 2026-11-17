@@ -1,0 +1,15 @@
+{% extends "base.html" %}
+
+{% block title %}Delete habit • Routine Rebels{% endblock %}
+
+{% block content %}
+<section aria-labelledby="delete-title" class="max-w-xl mx-auto bg-[var(--color-card)] border border-[var(--color-border)] rounded-2xl p-6 shadow-sm">
+    <h2 id="delete-title" class="text-2xl font-bold mb-4">Delete {{ habit.name }}?</h2>
+    <p class="mb-6 text-[var(--color-muted-foreground)]">This permanently deletes this habit, all its completion history, and its active or paused reminder. This cannot be undone.</p>
+    <form method="POST" action="{{ url_for('delete_habit', habit_id=habit.id) }}" class="flex flex-wrap items-center gap-4">
+        <a href="{{ url_for('habit_tracker') }}" class="px-4 py-2 border border-[var(--color-border)] rounded-lg">Cancel</a>
+        <button type="submit" name="confirm" value="delete"
+            class="px-4 py-2 bg-[var(--color-destructive)] text-white rounded-lg font-semibold cursor-pointer">Delete permanently</button>
+    </form>
+</section>
+{% endblock %}

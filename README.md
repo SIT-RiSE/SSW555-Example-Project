@@ -35,6 +35,15 @@ current schedule and retain existing completions.
 
 Regression tests: `uv run pytest tests/test_preserve_habit_history.py`.
 
+## Delete a habit
+
+Choose **Delete habit** on a habit card, then **Delete permanently** on the
+confirmation page. **Cancel** returns to the tracker without changing the habit.
+Deletion permanently removes the habit, its completion history, and its active
+or paused reminder. Other habits and shared categories remain unchanged.
+
+Regression tests: `uv run pytest tests/test_delete_habit.py`.
+
 ## Local development
 
 ```bash
