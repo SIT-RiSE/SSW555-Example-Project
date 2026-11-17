@@ -35,6 +35,16 @@ current schedule and retain existing completions.
 
 Regression tests: `uv run pytest tests/test_preserve_habit_history.py`.
 
+## Change a habit's schedule (US-21)
+
+Choose new scheduled days for an existing habit and save them to update which
+weekdays it is due on going forward. Future check-ins and the dashboard's
+"due today" view follow the new schedule immediately. The current streak is
+recalculated against the new schedule, and completions recorded outside of it
+remain in history.
+
+Regression tests: `uv run pytest tests/test_us21_change_habit_schedule.py`.
+
 ## Delete a habit
 
 Choose **Delete habit** on a habit card, then **Delete permanently** on the
