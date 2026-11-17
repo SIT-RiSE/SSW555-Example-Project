@@ -145,6 +145,33 @@ class Habit(db.Model):
                 return True
             db.session.rollback()
 
+    def remove_completion(self, day):
+        """US-25: remove a completed day, retrying if another request changes the history.
+
+        Returns False when ``day`` was not marked complete. Uses the same
+        compare-and-swap UPDATE as ``mark_complete`` so concurrent requests
+        cannot overwrite each other.
+        """
+        day_string = day.isoformat()
+        while True:
+            previous = db.session.execute(
+                select(Habit.completed_dates).where(Habit.id == self.id)
+            ).scalar_one()
+            dates = _parse_completion_dates(previous)
+            if day_string not in dates:
+                return False
+            result = db.session.execute(
+                update(Habit)
+                .where(Habit.id == self.id, Habit.completed_dates == previous)
+                .values(completed_dates=json.dumps([d for d in dates if d != day_string]))
+                .execution_options(synchronize_session=False)
+            )
+            if result.rowcount == 1:
+                db.session.commit()
+                db.session.expire(self, ['completed_dates'])
+                return True
+            db.session.rollback()
+
     @property
     def completed_dates_list(self):
         """Completion dates as date objects (JSON or legacy comma-separated history)."""
