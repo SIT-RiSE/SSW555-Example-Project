@@ -1,6 +1,7 @@
+import re
 from datetime import date, datetime
 
-from flask import Flask, abort, jsonify, redirect, render_template, request, url_for
+from flask import Flask, abort, flash, jsonify, redirect, render_template, request, url_for
 from sqlalchemy import inspect, text
 from sqlalchemy.exc import IntegrityError
 
@@ -13,12 +14,61 @@ app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 
 db.init_app(app)
 
-from models import DEFAULT_FREQUENCY, HABIT_FREQUENCIES, WEEKDAYS, Category, Habit  # noqa: E402
+from models import (  # noqa: E402
+    DEFAULT_FREQUENCY,
+    HABIT_FREQUENCIES,
+    WEEKDAYS,
+    Category,
+    Habit,
+    User,
+)
 
 
 @app.route('/')
 def home():
     return render_template('home/index.html', page_id='home')
+
+USERNAME_PATTERN = re.compile(r'[A-Za-z0-9_.-]{3,30}')
+MIN_PASSWORD_LENGTH = 8
+MAX_PASSWORD_LENGTH = 128
+
+
+def registration_errors(username, password, confirm):
+    errors = []
+    if not USERNAME_PATTERN.fullmatch(username):
+        errors.append('Username must be 3 to 30 letters, numbers, dots, dashes, or underscores.')
+    if not MIN_PASSWORD_LENGTH <= len(password) <= MAX_PASSWORD_LENGTH:
+        errors.append(f'Password must be {MIN_PASSWORD_LENGTH} to {MAX_PASSWORD_LENGTH} characters.')
+    if password != confirm:
+        errors.append('Passwords do not match.')
+    return errors
+
+
+@app.route('/register', methods=['GET', 'POST'])
+def register():
+    """US-27: create an account with a username and a securely hashed password."""
+    if request.method == 'GET':
+        return render_template('auth/register.html', page_id='register')
+
+    username = request.form.get('username', '').strip()
+    password = request.form.get('password', '')
+    errors = registration_errors(username, password, request.form.get('confirm_password', ''))
+    if not errors:
+        user = User(username=username)
+        user.set_password(password)
+        db.session.add(user)
+        try:
+            db.session.commit()
+        except IntegrityError:
+            db.session.rollback()
+            errors.append('That username is already taken.')
+    if errors:
+        return render_template('auth/register.html', page_id='register',
+                               errors=errors, username=username), 400
+
+    flash(f'Account created for {username}.')
+    return redirect(url_for('habit_tracker'))
+
 
 @app.route('/habit-tracker', methods=['GET', 'POST'])
 def habit_tracker():

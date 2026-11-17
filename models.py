@@ -2,6 +2,7 @@ import json
 from datetime import date, datetime, timedelta
 
 from sqlalchemy import select, update
+from werkzeug.security import check_password_hash, generate_password_hash
 
 from extensions import db
 
@@ -21,6 +22,20 @@ def _parse_completion_dates(history):
 class Category(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     name = db.Column(db.String(100, collation='NOCASE'), nullable=False, unique=True)
+
+
+class User(db.Model):
+    """US-27: a registered account. Only a salted hash of the password is stored."""
+    id = db.Column(db.Integer, primary_key=True)
+    username = db.Column(db.String(30, collation='NOCASE'), nullable=False, unique=True)
+    password_hash = db.Column(db.String(255), nullable=False)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+
+    def set_password(self, password):
+        self.password_hash = generate_password_hash(password)
+
+    def check_password(self, password):
+        return check_password_hash(self.password_hash, password)
 
 
 #: Canonical order used whenever scheduled days are saved or displayed.
