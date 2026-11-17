@@ -198,6 +198,25 @@
                             Recent check-ins: {% for day in habit.recent_completions %}{{ day.strftime('%b %d') }}{{ ', ' if not loop.last }}{% endfor %}
                         </p>
                     {% endif %}
+                    {% set completions = habit.completion_history() %}
+                    {% if completions %}
+                    <form method="POST" action="{{ url_for('remove_completion', habit_id=habit.id) }}"
+                        class="mt-3 flex flex-wrap items-end gap-2" data-testid="remove-completion">
+                        {% if dashboard_view == 'today' %}
+                        <input type="hidden" name="view" value="today">
+                        {% endif %}
+                        <div>
+                            <label for="remove-completion-{{ habit.id }}" class="block text-xs font-medium text-[var(--color-muted-foreground)] mb-1">Remove a completion</label>
+                            <select id="remove-completion-{{ habit.id }}" name="completed_on"
+                                class="px-3 py-1.5 text-sm border border-[var(--color-border)] rounded-lg bg-[var(--color-background)]">
+                                {% for day in completions %}
+                                <option value="{{ day.isoformat() }}">{{ day.strftime('%b %d, %Y') }}{{ ' (today)' if day == today }}</option>
+                                {% endfor %}
+                            </select>
+                        </div>
+                        <button type="submit" class="px-3 py-1.5 text-sm font-medium border border-[var(--color-border)] text-[var(--color-foreground)] rounded-lg cursor-pointer hover:bg-[var(--color-muted)] transition-colors duration-200">Remove</button>
+                    </form>
+                    {% endif %}
 
                     <details class="mt-3 group">
                         <summary class="text-sm font-medium text-[var(--color-primary)] cursor-pointer select-none inline-flex items-center gap-1 list-none">

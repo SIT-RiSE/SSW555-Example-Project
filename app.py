@@ -68,6 +68,23 @@ def complete_habit(habit_id):
     return redirect(url_for('habit_tracker'))
 
 
+@app.route('/habit-tracker/<int:habit_id>/completions/remove', methods=['POST'])
+def remove_completion(habit_id):
+    """US-25: remove a completion that was entered by mistake."""
+    habit = db.session.get(Habit, habit_id)
+    if habit is None:
+        abort(404)
+    try:
+        completed_on = date.fromisoformat(request.form.get('completed_on', '').strip())
+    except ValueError:
+        abort(400, description='Completion date must use the YYYY-MM-DD format.')
+    if not habit.remove_completion(completed_on):
+        abort(400, description='That date is not marked complete.')
+    if request.form.get('view') == 'today':
+        return redirect(url_for('habit_tracker', view='today'))
+    return redirect(url_for('habit_tracker'))
+
+
 @app.route('/habit-tracker/habits')
 def list_current_habits():
     """US-11: all current habits, newest first."""
