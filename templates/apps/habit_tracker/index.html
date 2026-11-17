@@ -275,6 +275,9 @@
                             </form>
                         </div>
                     </details>
+                    <a href="{{ url_for('delete_habit', habit_id=habit.id) }}"
+                        aria-label="Delete {{ habit.name }}"
+                        class="inline-block mt-4 text-sm font-medium text-[var(--color-destructive)] underline">Delete habit</a>
                 </div>
                 {% endfor %}
             </div>

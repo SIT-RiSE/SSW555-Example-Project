@@ -22,6 +22,28 @@ Habits with selected weekdays can only be completed on those days; habits
 without a weekday schedule are available every day. Frequency continues to
 define the progress/streak period independently of the weekday schedule.
 
+## History after habit edits
+
+Changing a habit's name, frequency, scheduled weekdays, category, or reminder
+keeps the same habit and all its recorded completion dates. Previous check-ins
+remain visible in recent history and through
+`/habit-tracker/habits/<habit_id>/history`, including date-range queries.
+Dates outside a newly selected schedule remain in history. Streak calculations
+use the current schedule, so changing weekdays can change the displayed streak;
+the app does not store earlier versions of schedules. New check-ins use the
+current schedule and retain existing completions.
+
+Regression tests: `uv run pytest tests/test_preserve_habit_history.py`.
+
+## Delete a habit
+
+Choose **Delete habit** on a habit card, then **Delete permanently** on the
+confirmation page. **Cancel** returns to the tracker without changing the habit.
+Deletion permanently removes the habit, its completion history, and its active
+or paused reminder. Other habits and shared categories remain unchanged.
+
+Regression tests: `uv run pytest tests/test_delete_habit.py`.
+
 ## Local development
 
 ```bash
